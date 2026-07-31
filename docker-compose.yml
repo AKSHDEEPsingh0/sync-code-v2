@@ -1,0 +1,45 @@
+
+services:
+  redis-broker:
+    image: redis:7-alpine
+    container_name: sync-redis
+    ports:
+      - "6380:6379"
+    networks:
+      - sync-net
+
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: sync-postgres
+    environment:
+      POSTGRES_USER: ubuntu_dev
+      POSTGRES_PASSWORD: SecretPassword123
+      POSTGRES_DB: synccode_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - sync-net
+
+  socket-engine:
+    build: ./apps/backend-sockets
+    container_name: sync-socket-engine
+    restart: always
+    ports:
+      - "5001:5000"
+    environment:
+      REDIS_URL: "redis://redis-broker:6379"
+      PORT: 5000
+    depends_on:
+      - redis-broker
+    networks:
+      - sync-net
+
+networks:
+  sync-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+
