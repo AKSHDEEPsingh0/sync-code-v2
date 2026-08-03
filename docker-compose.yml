@@ -1,4 +1,3 @@
-
 services:
   redis-broker:
     image: redis:7-alpine
@@ -36,10 +35,31 @@ services:
     networks:
       - sync-net
 
+  # Observability Layer: Time-Series Database Scraper
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: sync-prometheus
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9091:9090" # Fixed: Map external host port 9091 to container port 9090
+    networks:
+      - sync-net
+
+  # Observability Layer: Graphical Visualization Dashboard
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: sync-grafana
+    ports:
+      - "3001:3000" # Maps Grafana to local port 3001
+    depends_on:
+      - prometheus
+    networks:
+      - sync-net
+
 networks:
   sync-net:
     driver: bridge
 
 volumes:
   pgdata:
-

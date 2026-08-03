@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s # Scrape application metrics every 5 seconds
+
+scrape_configs:
+  - job_name: 'sync-code-socket-metrics'
+    static_configs:
+      - targets: ['socket-engine:5000'] # Points straight to your node application container

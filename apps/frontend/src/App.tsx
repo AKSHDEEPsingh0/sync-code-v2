@@ -10,21 +10,7 @@ function App() {
     '# 🚀 SYNC CODE v2.0 LIVE RUNTIME ENVIRONMENT\n' +
     '# =========================================\n' +
     '# Type ANY arbitrary python functions or algorithms below...\n\n' +
-    'def knapsack_01_with_items(weights, values, capacity):\n' +
-    '    n = len(values)\n' +
-    '    dp = [[0 for _ in range(capacity + 1)] for _ in range(n + 1)]\n' +
-    '    for i in range(1, n + 1):\n' +
-    '        for w in range(1, capacity + 1):\n' +
-    '            if weights[i - 1] <= w:\n' +
-    '                dp[i][w] = max(values[i - 1] + dp[i - 1][w - weights[i - 1]], dp[i - 1][w])\n' +
-    '            else:\n' +
-    '                dp[i][w] = dp[i - 1][w]\n' +
-    '    return dp[n][capacity]\n\n' +
-    'items_values = [60, 100, 120]\n' +
-    'items_weights = [10, 20, 30]\n' +
-    'knapsack_capacity = 50\n\n' +
-    'max_val = knapsack_01_with_items(items_weights, items_values, knapsack_capacity)\n' +
-    'print(f"Calculated Maximum Value: {max_val}")'
+    'print("Hello from the SYNC CODE v2.0 Live Workspace!")'
   )
   const [roomId] = useState<string>('devops-production-room')
   const [consoleOutput, setConsoleOutput] = useState<string>('Console Output will display here...')
