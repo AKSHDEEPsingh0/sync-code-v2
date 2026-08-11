@@ -6,6 +6,85 @@ A high-concurrency, event-driven real-time collaborative workspace platform buil
 
 ## 🏗️ SYSTEM ARCHITECTURE & PROD CLOUD NETWORK LOGIC
 
+
+graph TD
+    %% -------------------------------------------------------------------
+    %% PART 1: CI/CD PIPELINE & DEPLOYMENT FLOW
+    %% Correct operational line; removed redundant "Deploys To"
+    %% -------------------------------------------------------------------
+    subgraph CICD_Pipeline ["CI/CD Pipeline"]
+        direction LR
+        GH_Repo[GitHub Repo] == "(Webhook)" ==> GH_Runner[GitHub Actions Runner]
+        GH_Runner -. "(1. Docker Build & Validate)" .-> DockerHub[(Docker Hub / GHCR)]
+    end
+    
+    %% -------------------------------------------------------------------
+    %% PART 2: INFRASTRUCTURE & SECURITY BOUNDARY
+    %% -------------------------------------------------------------------
+    subgraph AWS_EC2 ["Terraform-Provisioned AWS EC2 (Ubuntu Linux)"]
+        direction TB
+        %% Main Operational Deployment line originating from Runner, not Registry
+        GH_Runner ==>|"(2. SSH to AWS EC2 & docker-compose up)"| AWS_EC2
+        DockerHub -.- AWS_EC2 %% conceptual line only
+
+        subgraph Security_Group ["Security Group: Port 80 & 22 Open"]
+            direction TB
+            %% -------------------------------------------------------------------
+            %% PART 3: APPLICATION FLOW
+            %% -------------------------------------------------------------------
+            Nginx[Nginx Reverse Proxy (L7 LB / WS Term)] ==> SocketA[TypeScript Socket Engine Pod A]
+            Nginx ==> SocketB[TypeScript Socket Engine Pod B]
+            
+            %% -------------------------------------------------------------------
+            %% PART 4: DATA LAYER (Cleaned and Simplified)
+            %% -------------------------------------------------------------------
+            subgraph Data_Tier ["Data Layer"]
+                Redis[(REDIS - Presence)]
+                Postgres[(POSTGRESQL - Doc State)]
+            end
+            
+            SocketA -. "(Pub/Sub)" .-> Redis
+            SocketB -. "(Pub/Sub)" .-> Redis
+            SocketA ===> Postgres
+            SocketB ===> Postgres
+            
+            %% -------------------------------------------------------------------
+            %% PART 5: MONITORING FLOW (Corrected unidirectional query)
+            %% -------------------------------------------------------------------
+            subgraph Monitoring_Tier ["Monitoring Stack"]
+                direction LR
+                Prometheus[PROMETHEUS]
+                Grafana[GRAFANA]
+                %% Unidirectional, corrected query flow
+                Grafana ==>|"(Grafana Queries via HTTP)"| Prometheus
+            end
+            
+            SocketA ==> Prometheus
+            SocketB ==> Prometheus
+        end
+    end
+    
+    %% -------------------------------------------------------------------
+    %% PART 6: EXTERNAL CLIENT CONNECTION
+    %% -------------------------------------------------------------------
+    Client[Developer Browser] ==>|"(WebSockets (Port 80))"| Nginx
+
+    %% -------------------------------------------------------------------
+    %% STYLING
+    %% -------------------------------------------------------------------
+    linkStyle 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18 stroke-width:1.5px,fill:none,stroke:#333;
+    linkStyle 0,2,3,4,5,6,7,12,13,14,16,17,18 stroke-dasharray: 4;
+    linkStyle 15 stroke-width:3px,stroke:#3b82f6; %% monitoring link color
+    classDef internal fill:#f1f5f9,stroke:#64748b,stroke-width:1px,rx:5,ry:5;
+    classDef database fill:#e2e8f0,stroke:#64748b,stroke-width:1.5px,stroke-dasharray: 4,rx:10,ry:10;
+    classDef monitoring fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px,rx:10,ry:10;
+    classDef external fill:#f9fafb,stroke:#a1a1aa,stroke-width:1px,rx:5,ry:5;
+    class GH_Repo,GH_Runner,Nginx,SocketA,SocketB internal;
+    class Redis,Postgres database;
+    class Prometheus,Grafana monitoring;
+    class DockerHub,Client external;
+
+    
 ```text
 [ GitHub Repo ] --(Webhook)--> [ GitHub Actions Runner ]
                                       | (1. Docker Build & Validate)
