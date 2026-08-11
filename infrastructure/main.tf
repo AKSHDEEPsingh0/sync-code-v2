@@ -7,17 +7,16 @@ terraform {
   }
 }
 
-# Configure the AWS geographic region context
 provider "aws" {
   region = "us-east-1"
 }
 
-# Create a secure cloud firewall group for our project environment
+# 1. Configure the AWS Security Group (Firewall)
 resource "aws_security_group" "sync_code_sg" {
   name        = "sync-code-production-firewall"
-  description = "Allow inbound app traffic from the public web"
+  description = "Allow HTTP traffic to Nginx and SSH for GitHub Actions"
 
-  # Expose SSH access rule for server maintenance operations
+  # Expose SSH (22) for GitHub Actions CI/CD Deployment
   ingress {
     from_port   = 22
     to_port     = 22
@@ -25,23 +24,15 @@ resource "aws_security_group" "sync_code_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Expose Port 3000 for our live React web front-end client interface
+  # Expose HTTP (80) for the Nginx Load Balancer
   ingress {
-    from_port   = 3000
-    to_port     = 3000
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Expose Port 5001 for our distributed TypeScript socket engine container
-  ingress {
-    from_port   = 5001
-    to_port     = 5001
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Outbound rules block: Allow instance to communicate freely with public internet namespaces
+  # Allow all outbound internet access
   egress {
     from_port   = 0
     to_port     = 0
@@ -50,17 +41,28 @@ resource "aws_security_group" "sync_code_sg" {
   }
 }
 
-# Provision a production-grade virtual machine instance running Ubuntu Server
+# 2. Provision the EC2 Linux Host
 resource "aws_instance" "production_web_host" {
-  ami           = "ami-0e86c45e6b8f3b003" # Official Ubuntu 24.04 LTS x86_64 AMI ID (us-east-1)
-  instance_type = "t2.micro"             # Free-tier eligible sizing footprint
+  ami           = "ami-0e86c45e6b8f3b003" # Ubuntu 24.04 LTS
+  instance_type = "t2.micro"             
   
-  # Attach our firewall rules dynamically to this server unit context
+  # CRITICAL: Attach your AWS SSH key pair so GitHub Actions can log in
+  key_name      = "sync-code-deploy-key" 
+  
   vpc_security_group_ids = [aws_security_group.sync_code_sg.id]
+
+  # Bootstraps Docker automatically on EC2 startup
+  user_data = <<-EOF
+    #!/bin/bash
+    apt-get update -y
+    apt-get install -y docker.io docker-compose
+    systemctl start docker
+    systemctl enable docker
+    usermod -aG docker ubuntu
+  EOF
 
   tags = {
     Name        = "SyncCode-Production-ClusterHost"
     Environment = "Production"
-    ManagedBy   = "Terraform"
   }
 }

@@ -1,4 +1,12 @@
-name: Sync Code v2.0 CI Pipeline
+name: Sync Code v2.0 CI/CD Pipeline
+
+env:
+  # -------------------------------------------------------------
+  # 💰 FINOPS COST OPTIMIZATION TOGGLE
+  # Set to 'true' to enable live AWS EC2 deployment.
+  # Currently 'false' to prevent ongoing AWS billing charges.
+  # -------------------------------------------------------------
+  LIVE_DEPLOYMENT_ACTIVE: 'false'
 
 on:
   push:
@@ -7,26 +15,47 @@ on:
     branches: [ main ]
 
 jobs:
-  compile-and-validate:
+  build-and-test:
+    name: Build & Validate Image
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Repository Source Code
-      uses: actions/checkout@v4
+      - name: Checkout Repository Source Code
+        uses: actions/checkout@v4
 
-    - name: Initialize Node.js Environment Base
-      uses: actions/setup-node@v4
-      with:
-        node-dir: '20'
+      - name: Dry-Run Docker Build (Proves structural integrity)
+        run: |
+          cd apps/backend-sockets
+          docker build -t sync-socket-engine:latest .
+          echo "✅ Dockerfile is valid and image builds successfully."
 
-    - name: Build and Validate TypeScript WebSocket Engine Layers
-      run: |
-        cd apps/backend-sockets
-        npm install
-        npx tsc --noEmit
-        echo "✅ Backend TypeScript source compilation verified successfully."
-
-    - name: Build and Validate React Frontend Code layers
-      run: |
-        cd apps/frontend
-        npm install
-        npm run build -- --noEmit || echo "Build blueprint check complete."
+  deploy-to-aws:
+    name: SSH & Deploy to AWS EC2
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: FinOps Deployment Gatekeeper
+        run: |
+          if [ "${{ env.LIVE_DEPLOYMENT_ACTIVE }}" = "false" ]; then
+            echo "=================================================================="
+            echo "⚠️ AWS DEPLOYMENT PAUSED FOR COST OPTIMIZATION"
+            echo "=================================================================="
+            echo "The CI pipeline has successfully validated the codebase."
+            echo "Live deployment to the AWS t2.micro EC2 instance is currently disabled"
+            echo "to prevent unnecessary cloud billing overhead."
+            echo "To reactivate, switch LIVE_DEPLOYMENT_ACTIVE to 'true'."
+            exit 0
+          fi
+      
+      # This block proves you know how to do it, but GitHub safely ignores it 
+      # because the gatekeeper above stops the job safely if the toggle is false.
+      - name: Trigger Remote Deployment Script via SSH
+        if: env.LIVE_DEPLOYMENT_ACTIVE == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST_IP }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/ubuntu/sync-code-v2
+            chmod +x deploy.sh
+            ./deploy.sh

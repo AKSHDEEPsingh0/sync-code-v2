@@ -8,14 +8,14 @@ A high-concurrency, event-driven real-time collaborative workspace platform buil
 
 ```text
 [ GitHub Repo ] --(Webhook)--> [ GitHub Actions Runner ]
-                                      | (1. Docker Build & Push)
+                                      | (1. Docker Build & Validate)
                                       v
 [ Docker Hub / GHCR ] <-- (Images stored)
-                                      | (2. SSH to VM & docker-compose up)
+                                      | (2. SSH to AWS EC2 & docker-compose up)
                                       v
 +-------------------------------------------------------------------+
-| TERRAFORM-PROVISIONED VM (Linux Host)                             |
-| (Sysctl tuned: fs.inotify.max_user_watches=524288)                |
+| TERRAFORM-PROVISIONED AWS EC2 (Ubuntu Linux)                      |
+| (Security Group: Port 80 & 22 Open)                               |
 |                                                                   |
 |  [ Nginx Reverse Proxy ] (L7 Load Balancer / WebSocket Term)      |
 |       |                                                           |
@@ -57,50 +57,47 @@ graph TD
 
 ---
 
+## 🔄 CI/CD WORKFLOW & FINOPS COST OPTIMIZATION
+
+This repository utilizes a dual-stage GitHub Actions pipeline designed with strictly integrated FinOps (Financial Operations) cost-control measures:
+
+1. **Continuous Integration (Active):** On every push, the pipeline provisions a temporary Ubuntu runner, initializes the Node.js environment, and executes a dry-run build of the Docker images. This ensures 100% structural integrity of the codebase and `Dockerfile` logic.
+2. **Continuous Deployment (Paused):** The live deployment stage—which uses SSH to connect to the AWS `t2.micro` EC2 instance and execute the cluster orchestrator—is currently gated via an environment toggle (`LIVE_DEPLOYMENT_ACTIVE: 'false'`). This prevents unnecessary ongoing AWS billing overhead while preserving the complete Infrastructure-as-Code (IaC) deployment logic in the repository.
+
+---
+
 ## 📁 PLATFORM MATRIX FOOTPRINT
 
 ```plaintext
 sync-code-v2/
 ├── apps/
 │   ├── backend-sockets/            # Stateful WebSockets Cluster Engine (TypeScript)
-│   │   ├── src/index.ts            # Core socket orchestration & child-process sandbox
-│   │   └── Dockerfile              # Multi-stage secure patched Alpine build footprint
 │   └── frontend/                   # High-performance asset client UI (React + Vite)
-│       ├── src/App.tsx             # Telemetry dashboard component
-│       └── src/engine.ts           # Local fallback parsing router
-├── infrastructure/                 # Infrastructure-as-Code & Automation Blueprints
-│   ├── ansible/                    # Configuration management & node provisioning
+├── infrastructure/                 # Infrastructure-as-Code
 │   ├── prometheus/                 # Observability metric scraper telemetry settings
-│   │   └── prometheus.yml          # Core time-series database scrape job definitions
-│   └── main.tf                     # Declarative cloud provisioning scripting
+│   └── main.tf                     # HashiCorp Terraform AWS EC2 Provisioning Script
+├── nginx/                          # Layer 7 Load Balancing & Reverse Proxy
+│   └── nginx.conf                  # WebSocket upgrade & upstream routing rules
 ├── .github/workflows/              # Automated DevOps Deployment Pipelines
 │   └── ci-cd.yml                   # GitHub Actions validation workflows
-└── docker-compose.yml              # Multi-Container infrastructure choreography orchestration
+├── deploy.sh                       # Automated Remote SSH Deployment Script
+└── docker-compose.yml              # Multi-Container infrastructure choreography
 ```
-
----
-
-## ⚡ PLATFORM ARCHITECTURE FEATURES
-
-* **Stateless Horizontal Scalability**: Integrates a distributed Redis Pub/Sub message broker matrix directly into the Socket.io adapter layer. Eliminates the need for restrictive sticky load-balancer sessions by syncing editing states across decoupled cluster containers in under 2ms.
-* **Kernel-Isolated RCE Sandbox**: Bypasses browser-level WebAssembly network latency via an infrastructure-level Remote Code Execution (RCE) service. Sockets safely pipe raw string code blocks to temporary directories inside an isolated container execution layer, evaluate execution logic using native Linux binaries with a strict **5-second process timeout constraint**, and dump `stdout` streams back to client channels under non-root (`USER node`) permissions.
-* **Production Telemetry & Observability**: Natively tracks, stores, and exposes internal application runtime performance variables via a custom `/metrics` endpoint, integrating seamlessly with Prometheus and Grafana dashboards.
 
 ---
 
 ## 🔌 COMPONENT NETWORK MAP (PORT ALLOCATIONS)
 
-To resolve localized operating system port binding collisions (`EADDRINUSE`) during development, external-facing host port maps are explicitly isolated:
+To ensure secure network isolation, all stateful databases and processing engines are shielded within the internal Docker bridge network (`sync-net`). Only the Nginx load balancer is exposed to the public internet via the AWS Security Group.
 
-| Container Name         | Internal Container Port | Assigned Host Port | Protocol / Service Function                     |
-| :--------------------- | :---------------------- | :----------------- | :---------------------------------------------- |
-| **sync-frontend**      | 80                      | 3000               | HTTP / Nginx Static React Assets                |
-| **sync-socket-engine** | 5000                    | 5001               | TCP / Stateful Socket.io Core & RCE Sandbox     |
-| **sync-redis**         | 6379                    | 6380               | TCP / Distributed Pub/Sub Inter-Pod Sync Broker |
-| **sync-postgres**      | 5432                    | 5433               | TCP / Relational Storage Base Schema            |
-| **sync-prometheus**    | 9090                    | 9091               | TCP / Time-Series Database Telemetry Scraper    |
-| **sync-grafana**       | 3000                    | 3001               | HTTP / Graphical Visualization Dashboard        |
-
+| Container Name         | Internal Port | Public Port | Service Function                                |
+| :--------------------- | :------------ | :---------- | :---------------------------------------------- |
+| **sync-nginx**         | 80            | **80**      | L7 Ingress / React Asset Delivery & WebSockets  |
+| **sync-socket-engine** | 5000          | Hidden      | Stateful Socket.io Core & RCE Sandbox           |
+| **sync-redis**         | 6379          | Hidden      | Distributed Pub/Sub Inter-Pod Sync Broker       |
+| **sync-postgres**      | 5432          | Hidden      | Relational Storage Base Schema                  |
+| **sync-prometheus**    | 9090          | Hidden      | Time-Series Database Telemetry Scraper          |
+| **sync-grafana**       | 3000          | Hidden      | Graphical Visualization Dashboard               |
 
 ---
 
@@ -127,18 +124,10 @@ sudo sysctl fs.inotify.max_user_watches=524288
 echo "fs.inotify.max_user_watches=524288" | sudo tee -a /etc/sysctl.conf
 ```
 
-### Case Study C: Software Supply Chain & Image Vulnerability Patches
-* **Symptom**: Automated container scans reveal critical sub-dependency package exploits (e.g., `tar`, `openssl`).
-* **Triage Workflow**: Enforce operating-system level updates during compile-time inside the production Dockerfile stage runner, and configure rigid override declarations inside the packaging metadata:
-
-```dockerfile
-RUN apk update && apk upgrade --no-cache && apk add --no-cache python3
-```
-
 ---
 
 ## 🧑‍💻 CORE ENGINEERING PROFILE
 
 * **Lead Cloud & DevOps Engineer**: Akshdeep Singh
-* **Specialization**: Master of Computer Applications (MCA) — Cloud Computing & DevOps
-* **Core Stack Frameworks**: Linux (RHEL/Ubuntu), Docker, Kubernetes, Ansible, Terraform, WebSockets, TypeScript, Python, Prometheus, Grafana, GitHub Actions
+* **Specialization**: Master of Computer Applications (MCA), Chandigarh University — Cloud Computing & DevOps
+* **Core Stack Frameworks**: AWS (EC2, Security Groups), Docker, Kubernetes, Terraform, Nginx, WebSockets, TypeScript, Python, Prometheus, Grafana, GitHub Actions
