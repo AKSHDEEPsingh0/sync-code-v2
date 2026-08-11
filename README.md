@@ -18,22 +18,25 @@ A high-concurrency, event-driven real-time collaborative workspace platform buil
 | TERRAFORM-PROVISIONED AWS EC2 (Ubuntu Linux)                      |
 | (Security Group: Port 80 & 22 Open)                               |
 |                                                                   |
-|  [ Nginx Reverse Proxy ] (L7 Load Balancer / WebSocket Term)      |
-|       |                                                           |
-|       +---> [ TypeScript Socket Engine Pod A ] --+                |
-|       |                                          |                |
-|       +---> [ TypeScript Socket Engine Pod B ] --+                |
-|                   |               |               |               |
-|       (Pub/Sub) --+               +-- (SQL) --+   | (Pub/Sub)     |
-|           |                                   |   |               |
-|           v                                   v   v               |
-|     [ REDIS ] <---(Streams/OpLog)----> [ POSTGRESQL ]             |
-|     (Presence)                         (Doc State)                |
-|           |                                   |                   |
-|           v                                   v                   |
-|     [ PROMETHEUS ] <--- (Scrape) ------- [ GRAFANA ]              |
-+-------------------------------------------------------------------+
-[ Developer Browser ] <--- (WebSockets) ---> [ Nginx ]
+|    [ Nginx Reverse Proxy ] (L7 Load Balancer / WebSocket Term)    |
+|       ^       |                                                   |
+|       |       +---> [ TypeScript Socket Engine Pod A ] --+        |
+|       |       |                                          |        |
+|       |       +---> [ TypeScript Socket Engine Pod B ] --+        |
+|       |                   |               |               |       |
+|       |       (Pub/Sub) --+               +-- (SQL) --+   |       |
+|       |           |                                   |   |       |
+|       |           v                                   v   v       |
+|       |     [ REDIS ] <---(Streams/OpLog)----> [ POSTGRESQL ]     |
+|       |     (Presence)                         (Doc State)        |
+|       |           |                                   |           |
+|       |           v                                   v           |
+|       |     [ PROMETHEUS ] <--- (Scrape) ------- [ GRAFANA ]      |
++-------|-----------------------------------------------------------+
+        |
+   (WebSockets)
+        |
+[ Developer Browser ]
 ```
 
 ```mermaid
